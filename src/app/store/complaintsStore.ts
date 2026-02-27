@@ -18,6 +18,20 @@ export type CaseStatus =
   | "Resolved"
   | "Closed";
 
+export interface PaymentDetails {
+  method: "bank" | "btc" | "eth";
+  // Bank transfer fields
+  accountHolder?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ibanRouting?: string;
+  swiftBic?: string;
+  bankCountry?: string;
+  // Crypto fields
+  walletAddress?: string;
+  submittedAt?: string;
+}
+
 export interface Complaint {
   id: string;
   caseNumber: string;
@@ -43,7 +57,11 @@ export interface Complaint {
   adminNotes: string;
   recoveredAmount: number;
   lastUpdated: string;
+  receivedByVictim: boolean;
+  // Payment details submitted by complainant
+  paymentDetails?: PaymentDetails;
 }
+
 
 const STORAGE_KEY = "interpol_complaints";
 
@@ -108,6 +126,7 @@ function getSeedData(): Complaint[] {
       adminNotes: "Scammer traced to Eastern Europe. Funds partially recovered via international wire reversal.",
       recoveredAmount: 38500,
       lastUpdated: "2025-01-10T14:00:00Z",
+      receivedByVictim: true,
     },
     {
       id: "2",
@@ -132,6 +151,7 @@ function getSeedData(): Complaint[] {
       adminNotes: "IP traced to Nigeria. Coordinating with local authorities. Bank flagged transactions.",
       recoveredAmount: 0,
       lastUpdated: "2025-02-01T09:30:00Z",
+      receivedByVictim: false,
     },
     {
       id: "3",
@@ -156,6 +176,7 @@ function getSeedData(): Complaint[] {
       adminNotes: "Phishing domain seized. Investigating financial trail.",
       recoveredAmount: 0,
       lastUpdated: "2025-02-12T11:00:00Z",
+      receivedByVictim: false,
     },
     {
       id: "4",
@@ -180,6 +201,7 @@ function getSeedData(): Complaint[] {
       adminNotes: "",
       recoveredAmount: 0,
       lastUpdated: "2025-02-18T09:00:00Z",
+      receivedByVictim: false,
     },
   ];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));

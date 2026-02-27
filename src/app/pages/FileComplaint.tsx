@@ -14,6 +14,7 @@ import {
   Info,
 } from "lucide-react";
 import { saveComplaint, generateCaseNumber, type ScamType } from "../store/complaintsStore";
+import { sbSaveComplaint, isSupabaseConfigured } from "../store/supabaseStore";
 
 const SCAM_TYPES: ScamType[] = [
   "Online Shopping",
@@ -141,38 +142,47 @@ export function FileComplaint() {
 
   const handleBack = () => setStep((s) => s - 1);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateStep(4)) return;
     setSubmitting(true);
-    setTimeout(() => {
-      const cn = generateCaseNumber();
-      setCaseNumber(cn);
-      saveComplaint({
-        id: Date.now().toString(),
-        caseNumber: cn,
-        createdAt: new Date().toISOString(),
-        status: "Pending Review",
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: form.phone,
-        country: form.country,
-        scamType: form.scamType as ScamType,
-        amountLost: parseFloat(form.amountLost),
-        currency: form.currency,
-        dateOfIncident: form.dateOfIncident,
-        scammerName: form.scammerName,
-        scammerEmail: form.scammerEmail,
-        scammerWebsite: form.scammerWebsite,
-        scammerPhone: form.scammerPhone,
-        description: form.description,
-        adminNotes: "",
-        recoveredAmount: 0,
-        lastUpdated: new Date().toISOString(),
-      });
-      setSubmitting(false);
-      setStep(5);
-    }, 2000);
+    const cn = generateCaseNumber();
+    const complaint = {
+      id: crypto.randomUUID(),
+      caseNumber: cn,
+      createdAt: new Date().toISOString(),
+      status: "Pending Review" as const,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      phone: form.phone,
+      country: form.country,
+      scamType: form.scamType as ScamType,
+      amountLost: parseFloat(form.amountLost),
+      currency: form.currency,
+      dateOfIncident: form.dateOfIncident,
+      scammerName: form.scammerName,
+      scammerEmail: form.scammerEmail,
+      scammerWebsite: form.scammerWebsite,
+      scammerPhone: form.scammerPhone,
+      description: form.description,
+      adminNotes: "",
+      recoveredAmount: 0,
+      lastUpdated: new Date().toISOString(),
+      receivedByVictim: false,
+    };
+    try {
+      if (isSupabaseConfigured) {
+        await sbSaveComplaint(complaint);
+      } else {
+        saveComplaint(complaint);
+      }
+    } catch (err) {
+      console.error("Supabase save failed, falling back to localStorage:", err);
+      saveComplaint(complaint);
+    }
+    setCaseNumber(cn);
+    setSubmitting(false);
+    setStep(5);
   };
 
   const handleCopy = () => {
@@ -258,15 +268,15 @@ export function FileComplaint() {
               <p className="text-gray-500 text-sm mb-6">Your identity will remain confidential throughout the investigation.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <InputField label="First Name" required>
-                  <input className={inputClass} placeholder="John" value={form.firstName} onChange={e => set("firstName", e.target.value)} />
+                  <input className={inputClass} placeholder="Your First Name" value={form.firstName} onChange={e => set("firstName", e.target.value)} />
                   {errors.firstName && <p className="text-[#C41230] text-xs mt-1">{errors.firstName}</p>}
                 </InputField>
                 <InputField label="Last Name" required>
-                  <input className={inputClass} placeholder="Doe" value={form.lastName} onChange={e => set("lastName", e.target.value)} />
+                  <input className={inputClass} placeholder="Your Last Name" value={form.lastName} onChange={e => set("lastName", e.target.value)} />
                   {errors.lastName && <p className="text-[#C41230] text-xs mt-1">{errors.lastName}</p>}
                 </InputField>
                 <InputField label="Email Address" required>
-                  <input className={inputClass} type="email" placeholder="john.doe@email.com" value={form.email} onChange={e => set("email", e.target.value)} />
+                  <input className={inputClass} type="email" placeholder="your@email.com" value={form.email} onChange={e => set("email", e.target.value)} />
                   {errors.email && <p className="text-[#C41230] text-xs mt-1">{errors.email}</p>}
                 </InputField>
                 <InputField label="Phone Number" hint="Include country code">

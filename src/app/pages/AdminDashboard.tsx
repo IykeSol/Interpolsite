@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
 import {
   Shield,
@@ -10,7 +10,6 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  TrendingUp,
   DollarSign,
   Users,
   FileText,
@@ -18,6 +17,10 @@ import {
   Save,
   ChevronDown,
   ArrowUpDown,
+  RefreshCw,
+  Loader2,
+  Banknote,
+  Bitcoin,
 } from "lucide-react";
 import {
   getComplaints,
@@ -25,6 +28,12 @@ import {
   type Complaint,
   type CaseStatus,
 } from "../store/complaintsStore";
+import {
+  sbGetComplaints,
+  sbUpdateComplaint,
+  isSupabaseConfigured,
+} from "../store/supabaseStore";
+import { supabase } from "../lib/supabase";
 
 const ALL_STATUSES: CaseStatus[] = [
   "Pending Review",
@@ -55,19 +64,60 @@ export function AdminDashboard() {
   const [editNotes, setEditNotes] = useState("");
   const [editRecovered, setEditRecovered] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
+  // ── Fetch complaints ─────────────────────────────────────────────────────
+  const fetchComplaints = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    setError("");
+    try {
+      if (isSupabaseConfigured) {
+        const data = await sbGetComplaints();
+        setComplaints(data);
+      } else {
+        setComplaints(getComplaints());
+      }
+    } catch (err) {
+      console.error("Failed to fetch complaints:", err);
+      setError("Failed to load complaints. Falling back to local data.");
+      setComplaints(getComplaints());
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  // ── Auth Guard ───────────────────────────────────────────────────────────
   useEffect(() => {
-    const auth = sessionStorage.getItem("igci_admin");
-    if (!auth) { navigate("/admin"); return; }
-    setComplaints(getComplaints());
-  }, [navigate]);
+    const checkAuth = async () => {
+      if (isSupabaseConfigured && supabase) {
+        // Verify against actual Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate("/admin");
+          return;
+        }
+      } else {
+        // Fallback: check sessionStorage flag
+        const auth = sessionStorage.getItem("igci_admin");
+        if (!auth) { navigate("/admin"); return; }
+      }
+      fetchComplaints();
+    };
+    checkAuth();
+  }, [navigate, fetchComplaints]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signOut();
+    }
     sessionStorage.removeItem("igci_admin");
     navigate("/admin");
   };
-
-  const refresh = () => setComplaints(getComplaints());
 
   const openCase = (c: Complaint) => {
     setSelected(c);
@@ -77,21 +127,61 @@ export function AdminDashboard() {
     setEditRecovered(c.recoveredAmount.toString());
   };
 
-  const handleSave = () => {
+  // ── Save case edits ──────────────────────────────────────────────────────
+  const handleSave = async () => {
     if (!selected) return;
     setSaving(true);
-    setTimeout(() => {
-      updateComplaint({
-        ...selected,
-        status: editStatus,
-        adminNotes: editNotes,
-        recoveredAmount: parseFloat(editRecovered) || 0,
-      });
-      refresh();
-      setSelected(prev => prev ? { ...prev, status: editStatus, adminNotes: editNotes, recoveredAmount: parseFloat(editRecovered) || 0 } : prev);
+    const updated: Complaint = {
+      ...selected,
+      status: editStatus,
+      adminNotes: editNotes,
+      recoveredAmount: parseFloat(editRecovered) || 0,
+      lastUpdated: new Date().toISOString(),
+    };
+    try {
+      if (isSupabaseConfigured) {
+        await sbUpdateComplaint(updated);
+      } else {
+        updateComplaint(updated);
+      }
+      await fetchComplaints(true);
+      setSelected(updated);
       setEditing(false);
+    } catch (err) {
+      console.error("Failed to save:", err);
+      // Fallback to localStorage update
+      updateComplaint(updated);
+      setComplaints(getComplaints());
+      setSelected(updated);
+      setEditing(false);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
+  };
+
+  // ── Quick Resolve button ─────────────────────────────────────────────────
+  const handleQuickResolve = async (c: Complaint) => {
+    if (c.status === "Resolved") return;
+    setResolvingId(c.id);
+    const updated: Complaint = {
+      ...c,
+      status: "Resolved",
+      lastUpdated: new Date().toISOString(),
+    };
+    try {
+      if (isSupabaseConfigured) {
+        await sbUpdateComplaint(updated);
+      } else {
+        updateComplaint(updated);
+      }
+      await fetchComplaints(true);
+    } catch (err) {
+      console.error("Failed to resolve:", err);
+      updateComplaint(updated);
+      setComplaints(getComplaints());
+    } finally {
+      setResolvingId(null);
+    }
   };
 
   const filtered = complaints.filter(c => {
@@ -106,9 +196,8 @@ export function AdminDashboard() {
   });
 
   // Stats
-  const totalLost = complaints.reduce((a, c) => a + (c.currency === "USD" ? c.amountLost : c.amountLost), 0);
   const totalRecovered = complaints.reduce((a, c) => a + c.recoveredAmount, 0);
-  const pending = complaints.filter(c => c.status === "Pending Review").length;
+  const pending  = complaints.filter(c => c.status === "Pending Review").length;
   const resolved = complaints.filter(c => c.status === "Resolved").length;
 
   return (
@@ -121,32 +210,61 @@ export function AdminDashboard() {
           </div>
           <div>
             <div className="font-bold text-sm">INTERPOL IGCI — Admin Dashboard</div>
-            <div className="text-gray-400 text-xs">Fraud Recovery Operations Centre</div>
+            <div className="text-gray-400 text-xs flex items-center gap-1.5">
+              Fraud Recovery Operations Centre
+              {isSupabaseConfigured && (
+                <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded px-1.5 py-0.5 text-[10px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  Live DB
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded text-sm transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          <span className="hidden sm:inline">Logout</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchComplaints(true)}
+            disabled={refreshing}
+            title="Refresh"
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded text-sm transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded text-sm transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard icon={FileText} label="Total Cases" value={complaints.length.toString()} color="bg-blue-500" />
-          <StatCard icon={Clock} label="Pending Review" value={pending.toString()} color="bg-amber-500" />
-          <StatCard icon={CheckCircle} label="Resolved" value={resolved.toString()} color="bg-green-500" />
-          <StatCard icon={DollarSign} label="Total Recovered" value={`$${totalRecovered.toLocaleString()}`} color="bg-[#C41230]" />
+          <StatCard icon={FileText}    label="Total Cases"     value={loading ? "—" : complaints.length.toString()} color="bg-blue-500" />
+          <StatCard icon={Clock}       label="Pending Review"  value={loading ? "—" : pending.toString()} color="bg-amber-500" />
+          <StatCard icon={CheckCircle} label="Resolved"        value={loading ? "—" : resolved.toString()} color="bg-green-500" />
+          <StatCard icon={DollarSign}  label="Total Recovered" value={loading ? "—" : `$${totalRecovered.toLocaleString()}`} color="bg-[#C41230]" />
         </div>
 
         {/* Table Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Toolbar */}
           <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-            <h2 className="text-[#0A1628] font-bold">All Complaints ({filtered.length})</h2>
+            <h2 className="text-[#0A1628] font-bold">
+              All Complaints {!loading && `(${filtered.length})`}
+            </h2>
             <div className="flex gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-56">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -174,56 +292,78 @@ export function AdminDashboard() {
 
           {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  {["Case #", "Complainant", "Country", "Scam Type", "Amount Lost", "Status", "Filed", "Action"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                      <div className="flex items-center gap-1">{h} {h !== "Action" && <ArrowUpDown className="w-3 h-3 opacity-50" />}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-12 text-gray-400">No cases found matching your search.</td>
+            {loading ? (
+              <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span className="text-sm">Loading cases{isSupabaseConfigured ? " from database" : ""}…</span>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    {["Case #", "Complainant", "Country", "Scam Type", "Amount Lost", "Status", "Filed", "Actions"].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                        <div className="flex items-center gap-1">{h} {h !== "Actions" && <ArrowUpDown className="w-3 h-3 opacity-50" />}</div>
+                      </th>
+                    ))}
                   </tr>
-                ) : (
-                  filtered.map(c => (
-                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-[#003087] font-semibold whitespace-nowrap">{c.caseNumber}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="font-medium text-[#0A1628]">{c.firstName} {c.lastName}</div>
-                        <div className="text-gray-400 text-xs">{c.email}</div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.country}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.scamType}</td>
-                      <td className="px-4 py-3 font-semibold text-[#C41230] whitespace-nowrap">
-                        {c.amountLost.toLocaleString()} {c.currency}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex px-2 py-1 rounded border text-xs font-semibold whitespace-nowrap ${statusColors[c.status]}`}>
-                          {c.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {new Date(c.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => openCase(c)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#003087] text-white rounded text-xs font-medium hover:bg-[#002070] transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View
-                        </button>
-                      </td>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-12 text-gray-400">No cases found matching your search.</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filtered.map(c => (
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-[#003087] font-semibold whitespace-nowrap">{c.caseNumber}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="font-medium text-[#0A1628]">{c.firstName} {c.lastName}</div>
+                          <div className="text-gray-400 text-xs">{c.email}</div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.country}</td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.scamType}</td>
+                        <td className="px-4 py-3 font-semibold text-[#C41230] whitespace-nowrap">
+                          {c.amountLost.toLocaleString()} {c.currency}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-1 rounded border text-xs font-semibold whitespace-nowrap ${statusColors[c.status]}`}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                          {new Date(c.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => openCase(c)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-[#003087] text-white rounded text-xs font-medium hover:bg-[#002070] transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View
+                            </button>
+                            {c.status !== "Resolved" && c.status !== "Closed" && (
+                              <button
+                                onClick={() => handleQuickResolve(c)}
+                                disabled={resolvingId === c.id}
+                                title="Mark as Resolved"
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors disabled:opacity-60"
+                              >
+                                {resolvingId === c.id
+                                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  : <CheckCircle className="w-3.5 h-3.5" />}
+                                Resolve
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
@@ -288,6 +428,70 @@ export function AdminDashboard() {
                 <InfoRow label="Recovered" value={selected.recoveredAmount > 0 ? `${selected.recoveredAmount.toLocaleString()} ${selected.currency}` : "None yet"} success={selected.recoveredAmount > 0} />
               </Section>
 
+              {/* Payment Details from complainant */}
+              {selected.paymentDetails ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Banknote className="w-4 h-4 text-[#003087]" />
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment Details Submitted</span>
+                    <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                      selected.paymentDetails.method === "bank"
+                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                        : selected.paymentDetails.method === "btc"
+                        ? "bg-orange-50 text-orange-700 border-orange-200"
+                        : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                    }`}>
+                      {selected.paymentDetails.method === "bank" ? "Bank Transfer" : selected.paymentDetails.method === "btc" ? "Bitcoin" : "Ethereum"}
+                    </span>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl divide-y divide-gray-100">
+                    <div className="px-4 py-2.5 flex justify-between items-center border-b border-gray-100">
+                      <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Victim Confirmation</span>
+                      {selected.receivedByVictim ? (
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase border border-green-200">
+                          <CheckCircle className="w-3 h-3" />
+                          Received
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase border border-amber-200">
+                          Pending
+                        </span>
+                      )}
+                    </div>
+                    {selected.paymentDetails.method === "bank" ? (
+                      <>
+                        {selected.paymentDetails.accountHolder && <InfoRow label="Account Holder" value={selected.paymentDetails.accountHolder} />}
+                        {selected.paymentDetails.bankName && <InfoRow label="Bank Name" value={selected.paymentDetails.bankName} />}
+                        {selected.paymentDetails.accountNumber && <InfoRow label="Account Number" value={selected.paymentDetails.accountNumber} />}
+                        {selected.paymentDetails.ibanRouting && <InfoRow label="IBAN / Routing" value={selected.paymentDetails.ibanRouting} />}
+                        {selected.paymentDetails.swiftBic && <InfoRow label="SWIFT / BIC" value={selected.paymentDetails.swiftBic} />}
+                        {selected.paymentDetails.bankCountry && <InfoRow label="Bank Country" value={selected.paymentDetails.bankCountry} />}
+                      </>
+                    ) : (
+                      <div className="px-4 py-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Bitcoin className={`w-4 h-4 ${selected.paymentDetails.method === "btc" ? "text-orange-500" : "text-indigo-500"}`} />
+                          <span className="text-xs text-gray-500">{selected.paymentDetails.method === "btc" ? "BTC" : "ETH"} Wallet Address</span>
+                        </div>
+                        <p className="font-mono text-xs text-[#0A1628] break-all bg-gray-100 rounded-lg p-2">
+                          {selected.paymentDetails.walletAddress}
+                        </p>
+                      </div>
+                    )}
+                    {selected.paymentDetails.submittedAt && (
+                      <div className="px-4 py-2">
+                        <span className="text-[10px] text-gray-400">Submitted: {new Date(selected.paymentDetails.submittedAt).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-gray-400 text-xs bg-gray-50 rounded-xl px-4 py-3">
+                  <Banknote className="w-4 h-4" />
+                  No payment details submitted yet.
+                </div>
+              )}
+
               {/* Edit Panel */}
               {editing && (
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 space-y-4">
@@ -328,11 +532,8 @@ export function AdminDashboard() {
                   >
                     {saving ? (
                       <>
-                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                        Saving...
+                        <Loader2 className="animate-spin w-4 h-4" />
+                        Saving…
                       </>
                     ) : (
                       <>
@@ -397,3 +598,4 @@ function InfoRow({ label, value, highlight, success }: { label: string; value: s
     </div>
   );
 }
+

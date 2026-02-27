@@ -16,8 +16,15 @@ import {
   Star,
 } from "lucide-react";
 
-const HERO_IMAGE = "https://images.unsplash.com/photo-1605360846282-023d330bad8d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYXclMjBlbmZvcmNlbWVudCUyMGN5YmVyY3JpbWUlMjBpbnZlc3RpZ2F0aW9uJTIwZGFya3xlbnwxfHx8fDE3NzE4MzYwMjl8MA&ixlib=rb-4.1.0&q=80&w=1080";
-const JUSTICE_IMAGE = "https://images.unsplash.com/photo-1757939056741-6a3e18923193?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxqdXN0aWNlJTIwc2NhbGVzJTIwY291cnRob3VzZSUyMHByb2Zlc3Npb25hbHxlbnwxfHx8fDE3NzE4MzYwMzF8MA&ixlib=rb-4.1.0&q=80&w=1080";
+// LOCAL IMAGES — drop your photos into public/images/ with these exact filenames:
+//   public/images/hero.jpg     — dark law enforcement / cybercrime investigation photo (landscape)
+//   public/images/justice.jpg  — justice scales / courthouse / professional legal photo (portrait)
+const HERO_IMAGE = "/images/hero.jpg";
+const JUSTICE_IMAGE = "/images/justice.jpg";
+
+const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  (e.target as HTMLImageElement).style.display = "none";
+};
 
 const stats = [
   { value: "195", label: "Member Countries", icon: Globe },
@@ -83,12 +90,15 @@ const testimonials = [
 export function Home() {
   const navigate = useNavigate();
 
+  // Dynamic advisory date — always shows the current month/year
+  const advisoryDate = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
   return (
     <div>
       {/* Hero */}
-      <section className="relative min-h-[85vh] flex items-center overflow-hidden">
+      <section className="relative min-h-[75vh] sm:min-h-[85vh] flex items-center overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-center bg-[#0A1628]"
           style={{ backgroundImage: `url(${HERO_IMAGE})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0A1628]/95 via-[#003087]/85 to-[#0A1628]/70" />
@@ -134,7 +144,7 @@ export function Home() {
       {/* Stats */}
       <section className="bg-[#003087] py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-10">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 md:gap-10">
             {stats.map(({ value, label, icon: Icon }) => (
               <div key={label} className="text-center">
                 <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mx-auto mb-3">
@@ -157,7 +167,7 @@ export function Home() {
             </div>
             <div>
               <p className="text-amber-900 font-semibold text-sm">
-                Advisory Notice — February 2026: Rise in Cryptocurrency and AI-Generated Investment Fraud
+                Advisory Notice — {advisoryDate}: Rise in Cryptocurrency and AI-Generated Investment Fraud
               </p>
               <p className="text-amber-800 text-sm mt-0.5">
                 INTERPOL IGCI is currently tracking a significant increase in AI-generated phishing campaigns and fake trading platforms. Do not share your wallet keys or banking credentials with anyone.
@@ -218,7 +228,7 @@ export function Home() {
               We handle all forms of financial and digital fraud with specialised investigators dedicated to each category.
             </p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {scamTypes.map(({ title, icon: Icon, color }) => (
               <div key={title} className={`border rounded-xl p-6 flex items-center gap-4 cursor-pointer hover:-translate-y-1 transition-transform duration-200 bg-white ${color.split(" ")[2]}`}>
                 <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${color.split(" ")[0]} ${color.split(" ")[1]}`}>
@@ -276,6 +286,8 @@ export function Home() {
                 src={JUSTICE_IMAGE}
                 alt="Justice and Law"
                 className="rounded-2xl shadow-2xl w-full object-cover h-[400px]"
+                loading="lazy"
+                onError={handleImgError}
               />
               <div className="absolute -bottom-6 -left-6 bg-[#C41230] text-white rounded-xl p-5 shadow-xl hidden md:block">
                 <div className="text-3xl font-bold">$2.8B+</div>

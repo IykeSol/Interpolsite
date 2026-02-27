@@ -1,29 +1,49 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
-
-const ADMIN_PASSWORD = "admin123";
+import { Shield, Lock, Eye, EyeOff, AlertCircle, Mail } from "lucide-react";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 export function AdminLogin() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!email.trim()) { setError("Please enter your email"); return; }
     if (!password) { setError("Please enter your password"); return; }
+
     setLoading(true);
     setError("");
-    setTimeout(() => {
-      if (password === ADMIN_PASSWORD) {
-        sessionStorage.setItem("igci_admin", "true");
+
+    try {
+      if (isSupabaseConfigured && supabase) {
+        // Use Supabase Auth — credentials managed in Supabase dashboard
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (authError || !data.session) {
+          setError("Invalid credentials. Access denied.");
+          setLoading(false);
+          return;
+        }
+
+        // Store the access token so the dashboard can verify it
+        sessionStorage.setItem("igci_admin", data.session.access_token);
         navigate("/admin/dashboard");
       } else {
-        setError("Invalid credentials. Access denied.");
+        setError("Supabase is not configured. Cannot authenticate.");
+        setLoading(false);
       }
+    } catch (err) {
+      console.error("Auth error:", err);
+      setError("An error occurred. Please try again.");
       setLoading(false);
-    }, 1200);
+    }
   };
 
   return (
@@ -51,18 +71,39 @@ export function AdminLogin() {
           </div>
 
           <div className="space-y-4">
+            {/* Email */}
             <div>
               <label className="block text-[#0A1628] text-sm font-semibold mb-1.5">
-                Admin Password <span className="text-[#C41230]">*</span>
+                Admin Email <span className="text-[#C41230]">*</span>
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="email"
+                  className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] transition-all"
+                  placeholder="admin@your-domain.com"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setError(""); }}
+                  onKeyDown={e => e.key === "Enter" && handleLogin()}
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-[#0A1628] text-sm font-semibold mb-1.5">
+                Password <span className="text-[#C41230]">*</span>
               </label>
               <div className="relative">
                 <input
                   type={showPw ? "text" : "password"}
                   className="w-full border border-gray-200 rounded-lg px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] transition-all"
-                  placeholder="Enter admin password"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError(""); }}
                   onKeyDown={e => e.key === "Enter" && handleLogin()}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -91,7 +132,7 @@ export function AdminLogin() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                   </svg>
-                  Authenticating...
+                  Authenticating…
                 </>
               ) : (
                 <>

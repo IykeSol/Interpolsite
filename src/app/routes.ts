@@ -6,6 +6,7 @@ import { TrackCase } from "./pages/TrackCase";
 import { About } from "./pages/About";
 import { AdminLogin } from "./pages/AdminLogin";
 import { AdminDashboard } from "./pages/AdminDashboard";
+import { Legal } from "./pages/Legal";
 
 export const router = createBrowserRouter([
   {
@@ -16,6 +17,7 @@ export const router = createBrowserRouter([
       { path: "complaint", Component: FileComplaint },
       { path: "track", Component: TrackCase },
       { path: "about", Component: About },
+      { path: "legal", Component: Legal },
     ],
   },
   {

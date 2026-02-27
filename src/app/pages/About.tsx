@@ -15,7 +15,13 @@ import {
   Cpu,
 } from "lucide-react";
 
-const SECURITY_IMAGE = "https://images.unsplash.com/photo-1617207281953-01b41c126aab?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaW5hbmNpYWwlMjBmcmF1ZCUyMGRpZ2l0YWwlMjBzZWN1cml0eSUyMGJsdWV8ZW58MXx8fHwxNzcxODM2MDI5fDA&ixlib=rb-4.1.0&q=80&w=1080";
+// LOCAL IMAGE — drop your photo into public/images/ with this exact filename:
+//   public/images/security.jpg  — digital security / blue tech / financial fraud investigation photo
+const SECURITY_IMAGE = "/images/security.jpg";
+
+const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  (e.target as HTMLImageElement).style.display = "none";
+};
 
 const divisions = [
   {
@@ -113,7 +119,7 @@ export function About() {
               </ul>
             </div>
             <div className="relative">
-              <img src={SECURITY_IMAGE} alt="Digital Security" className="rounded-2xl shadow-xl w-full object-cover h-[380px]" />
+              <img src={SECURITY_IMAGE} alt="Digital Security" className="rounded-2xl shadow-xl w-full object-cover h-[380px]" loading="lazy" onError={handleImgError} />
               <div className="absolute -top-4 -right-4 bg-[#003087] text-white rounded-xl p-4 shadow-xl hidden md:block text-center">
                 <div className="font-bold text-2xl">195</div>
                 <div className="text-blue-200 text-xs">Member Countries</div>

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
-  Shield,
   Menu,
   X,
   Globe,
@@ -14,16 +13,15 @@ import {
   Youtube,
 } from "lucide-react";
 
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
-  // --- Hidden admin access ---
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Secret: click the shield logo 5 times rapidly
   const handleLogoClick = () => {
     logoClickCount.current += 1;
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
@@ -37,7 +35,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }, 2000);
   };
 
-  // Secret: keyboard shortcut Ctrl+Shift+A
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === "A") {
@@ -48,7 +45,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [navigate]);
-  // --- End hidden admin access ---
 
   const navLinks = [
     { label: "Home", path: "/" },
@@ -61,23 +57,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F6FA]">
-      {/* Top Bar */}
-      <div className="bg-[#0A1628] text-gray-300 py-2 px-4 text-sm hidden md:block">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <span className="flex items-center gap-1.5">
-              <Phone className="w-3 h-3" />
-              Emergency Hotline: +1 (800) IGCI-24/7
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Mail className="w-3 h-3" />
-              complaints@igci-interpol.int
-            </span>
+      {/* Top Bar — desktop full, mobile condensed */}
+      <div className="bg-[#0A1628] text-gray-300 text-xs">
+        {/* Desktop */}
+        <div className="hidden md:block py-2 px-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <span className="flex items-center gap-1.5">
+                <Phone className="w-3 h-3" />
+                Emergency Hotline: +1 (800) IGCI-24/7
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Mail className="w-3 h-3" />
+                complaints@igci-interpol.int
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Globe className="w-3 h-3" />
+              <span>INTERPOL Global Complex for Innovation</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Globe className="w-3 h-3" />
-            <span>INTERPOL Global Complex for Innovation</span>
-          </div>
+        </div>
+        {/* Mobile — single slim strip */}
+        <div className="md:hidden flex items-center justify-center gap-3 py-1.5 px-4 text-center">
+          <Phone className="w-3 h-3 shrink-0" />
+          <span>+1 (800) IGCI-24/7</span>
+          <span className="text-gray-600">|</span>
+          <Mail className="w-3 h-3 shrink-0" />
+          <span className="truncate">complaints@igci-interpol.int</span>
         </div>
       </div>
 
@@ -85,21 +92,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <header className="bg-white shadow-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
-            {/* Logo — clicking the shield 5× triggers hidden admin access */}
+            {/* Logo */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handleLogoClick}
-                className="w-10 h-10 md:w-12 md:h-12 bg-[#003087] rounded-full flex items-center justify-center shadow-md hover:bg-[#002070] transition-colors duration-300 focus:outline-none"
+                className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden flex items-center justify-center shadow-md focus:outline-none focus:ring-2 focus:ring-[#003087]/40"
                 aria-label="INTERPOL IGCI"
               >
-                <Shield className="w-6 h-6 text-white" />
+                <img
+                  src="/images/loggo.png"
+                  alt="INTERPOL IGCI Logo"
+                  className="w-full h-full object-cover"
+                />
               </button>
               <Link to="/" className="group">
                 <div className="text-[#003087] tracking-widest text-xs font-semibold uppercase">
                   International Criminal Police Organization
                 </div>
                 <div className="text-[#0A1628] text-lg font-bold tracking-wide leading-none">
-                  INTERPOL — IGCI
+                  INTERPOL | IGCI
                 </div>
               </Link>
             </div>
@@ -124,6 +135,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {/* Mobile toggle */}
             <button
               className="lg:hidden p-2 rounded text-[#0A1628] hover:bg-gray-100"
+              aria-label="Toggle navigation"
+              aria-expanded={mobileOpen}
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -131,7 +144,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Mobile Nav — no admin link */}
+        {/* Mobile Nav */}
         {mobileOpen && (
           <div className="lg:hidden bg-white border-t border-gray-100 px-4 py-3 space-y-1">
             {navLinks.map((link) => (
@@ -156,15 +169,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Page Content */}
       <main className="flex-1">{children}</main>
 
-      {/* Footer — no admin link */}
+      {/* Footer */}
       <footer className="bg-[#0A1628] text-gray-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
             {/* Brand */}
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-[#003087] rounded-full flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
+                  <img src="/images/loggo.png" alt="INTERPOL IGCI Logo" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <div className="text-white font-bold text-base leading-none">INTERPOL</div>
@@ -249,9 +262,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="border-t border-white/10 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
             <p>© {new Date().getFullYear()} INTERPOL Global Complex for Innovation. All rights reserved.</p>
             <div className="flex items-center gap-4">
-              <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-              <a href="#" className="hover:text-white transition-colors">Terms of Use</a>
-              <a href="#" className="hover:text-white transition-colors">Legal Notice</a>
+              <Link to="/legal#privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+              <Link to="/legal#terms" className="hover:text-white transition-colors">Terms of Use</Link>
+              <Link to="/legal#legal" className="hover:text-white transition-colors">Legal Notice</Link>
             </div>
           </div>
         </div>

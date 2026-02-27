@@ -1,1 +1,11 @@
-# repo-template
+
+  # Interpol site
+
+  This is a code bundle for Interpol site. The original project is available at https://www.figma.com/design/ye5hS3Pyoxjqfy5855EqlW/Interpol-site.
+
+  ## Running the code
+
+  Run `npm i` to install the dependencies.
+
+  Run `npm run dev` to start the development server.
+  

@@ -100,7 +100,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 aria-label="INTERPOL IGCI"
               >
                 <img
-                  src="/images/loggo.png"
+                  src="/images/loggo.webp"
                   alt="INTERPOL IGCI Logo"
                   className="w-full h-full object-cover"
                 />
@@ -177,7 +177,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
-                  <img src="/images/loggo.png" alt="INTERPOL IGCI Logo" className="w-full h-full object-cover" />
+                  <img src="/images/loggo.webp" alt="INTERPOL IGCI Logo" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <div className="text-white font-bold text-base leading-none">INTERPOL</div>
